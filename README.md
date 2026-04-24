@@ -1,19 +1,14 @@
-# Trulioo Device iOS Guide
+# Trulioo iOS SDK Guide
 
-Welcome to the iOS integration guide for Trulioo Device.
+Welcome to the iOS integration guide for the Trulioo SDK.
 
 This guide is designed so a junior iOS developer can integrate the SDK without reverse-engineering the source, and a junior QA engineer can validate the flow and capture useful diagnostics.
-
-Read this guide together with:
-
-- [Trulioo Device Shared Integration Contract](./trulioo-shared-contract.md)
-- [Trulioo SDK Documentation Standard](./trulioo-documentation-standard.md) if you are reviewing or publishing SDK docs
 
 ## Quick Summary
 
 A standard iOS integration looks like this:
 
-1. add the `Trulioo` Swift package for Trulioo Device
+1. add the `Trulioo` Swift package
 2. initialize with a shortcode
 3. call `sendDeviceInformation(...)`
 4. optionally provide subject reference data
@@ -26,7 +21,7 @@ A standard iOS integration looks like this:
 - package name: `Trulioo`
 - minimum iOS version: `15.0`
 
-The package includes the runtime components required by the public Trulioo Device API.
+The package includes the runtime components required by the public Trulioo API.
 
 Supported iOS integrations must use the Trulioo-supported runtime contract for the current package version.
 
@@ -40,7 +35,15 @@ Add the package:
 
 ```swift
 dependencies: [
-    .package(url: "<your Trulioo package URL>", from: "<version>")
+    .package(url: "https://github.com/Trulioo/trulioo-ios.git", from: "X.Y.Z")
+]
+```
+
+For beta builds, depend on the prerelease tag explicitly:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/Trulioo/trulioo-ios.git", exact: "X.Y.Z-beta.N")
 ]
 ```
 
@@ -350,7 +353,7 @@ A junior QA engineer can validate an iOS integration with this checklist:
 If device intelligence does not run:
 
 1. Confirm initialization succeeded.
-2. Confirm `configuration.deviceIntelligence?.enabled == true`.
+2. Confirm `configuration.deviceConfiguration?.intelligenceEnabled == true`.
 3. Confirm the backend returned a device credential.
 4. Confirm send was explicitly invoked, or confirm the debug wait path was intentionally chosen.
 5. Inspect `debugTrace`.
