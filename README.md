@@ -1,9 +1,5 @@
 # Trulioo iOS SDK Guide
 
-Welcome to the iOS integration guide for the Trulioo SDK.
-
-This guide is designed so a junior iOS developer can integrate the SDK without reverse-engineering the source, and a junior QA engineer can validate the flow and capture useful diagnostics.
-
 ## Quick Summary
 
 A standard iOS integration looks like this:
@@ -66,7 +62,7 @@ Main entry points:
 - `Trulioo.sendDeviceInformation(...)`
 - `Trulioo.collectDeviceIntelligence(...)`
 - `Trulioo.getDeviceInformation(...)`
-- `Trulioo.pollMetadataStatus(...)`
+- `Trulioo.sessionClient(...)`
 
 Important types:
 
@@ -80,6 +76,7 @@ Important types:
 - `DeviceSeedResponse`
 - `DeviceEventResponse`
 - `DebugTraceEntry`
+- `TruliooSessionClient`
 
 ## Initialization
 
@@ -193,19 +190,61 @@ Trulioo.getDeviceInformation(
 )
 ```
 
-## Metadata Polling
+## Advanced Authorized Session Contract
 
-The iOS SDK also exposes metadata polling for desktop-to-mobile handoff cases:
+iOS also exposes a post-bootstrap authorized session client.
+
+Use this when your integration needs approved Trulioo routes after initialization, such as:
+
+- typed authorized JSON requests
+- typed authorized binary uploads
+
+Create the session client from a successful initialization result:
 
 ```swift
-let status = try await Trulioo.pollMetadataStatus(
-    shortcode: shortcode,
-    transactionId: transactionId,
-    accessToken: accessToken
+let sessionClient = try Trulioo.sessionClient(
+    initialization: initialized,
+    allowedAuthorizedPaths: [
+        "/vendor/device/session"
+    ]
 )
 ```
 
-Use this only when your flow needs to follow the desktop-to-mobile metadata status lifecycle.
+The zero-argument overload only enables the base SDK's default device-owned post-bootstrap routes. Feature SDKs that own additional approved routes must register them explicitly through `allowedAuthorizedPaths`.
+
+Available operations:
+
+- `authorizedPost(path:body:)`
+- `authorizedGet(path:)`
+- `authorizedPostWithoutResponse(path:body:)`
+- `authorizedPostWithoutBody(path:)`
+- `authorizedGetWithoutResponse(path:)`
+- `authorizedUpload(path:body:contentType:headers:timeoutMilliseconds:)`
+
+Example typed authorized POST:
+
+```swift
+struct StatusRequest: Encodable {
+    let transactionId: String
+}
+
+struct StatusResponse: Decodable {
+    let status: String
+}
+
+let status: StatusResponse = try await sessionClient.authorizedPost(
+    path: "/vendor/device/session",
+    body: StatusRequest(transactionId: "txn-123")
+)
+```
+
+Rules:
+
+- initialize first and reuse the returned session result
+- the default helper only includes the base SDK's built-in device route allowlist
+- register any extra approved routes explicitly through `allowedAuthorizedPaths`
+- use approved relative paths only
+- treat this as an advanced contract, not the default device-information integration path
 
 ## Polling
 
@@ -318,27 +357,6 @@ Supported region prefixes:
 - `ca`
 
 Local and emulator shortcodes are blocked unless `allowLocalDevelopment` is explicitly enabled.
-
-## QA Validation Checklist
-
-A junior QA engineer can validate an iOS integration with this checklist:
-
-1. Initialize with a valid shortcode.
-2. Confirm initialization succeeds.
-3. Confirm device intelligence is enabled in session configuration when expected.
-4. Trigger send.
-5. Confirm the SDK returns accepted or failed.
-6. If using the debug wait path, confirm `deviceEvent.status` reaches a terminal state and `deviceSeed` appears when expected.
-7. Confirm `debugTrace` contains:
-   - `challenge`
-   - `authorize`
-   - `session_configuration`
-   - `device_bridge_initialize`
-   - `device_bridge_submit`
-   - `device_event_seed`
-   - `device_event_poll`
-   - `device_event_terminal`
-8. If subject data was passed, confirm `device_reference_submit` exists.
 
 ## Common Mistakes
 

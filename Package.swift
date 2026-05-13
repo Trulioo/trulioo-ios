@@ -1,11 +1,13 @@
 // swift-tools-version: 5.10
 import PackageDescription
 
-// Updated by scripts/package_binary_artifact.sh during release preparation.
-let truliooArtifactURL = "https://github.com/Trulioo/trulioo-ios/releases/download/3.0.0/Trulioo.xcframework.zip"
-let truliooArtifactChecksum = "adf19ac32a2d9230ae27f0d5508133306b5267752a7690fdfc0269e4ec086352"
-let truliooCoreArtifactURL = "https://github.com/Trulioo/trulioo-ios/releases/download/3.0.0/TruliooCore.xcframework.zip"
-let truliooCoreArtifactChecksum = "6549d0cdd241e69be0d75db553945a0ff020a490e418b4e07b5dee098cbfe5eb"
+// Updated by scripts/package/package_binary_artifact.sh during release preparation.
+let truliooArtifactURL = "https://github.com/Trulioo/trulioo-ios/releases/download/3.1.0-beta.1/Trulioo.xcframework.zip"
+let truliooArtifactChecksum = "f7296de010086407d650cc62e4838ba9ffe7ba97d298a0b8b8ccfa5086952585"
+let truliooCoreArtifactURL = "https://github.com/Trulioo/trulioo-ios/releases/download/3.1.0-beta.1/TruliooCore.xcframework.zip"
+let truliooCoreArtifactChecksum = "bfa4dff09ad7a7041ed8b0cf33ba3a6b823294d9516e62284b795af9855974ca"
+let bureauArtifactURL = "https://github.com/Trulioo/trulioo-ios/releases/download/3.1.0-beta.1/bureau_id_fraud_sdk.xcframework.zip"
+let bureauArtifactChecksum = "de1c654b25b3f790ac5d62f4e8b066a07952f893b87017508b8d22a868c391d0"
 
 let package = Package(
     name: "Trulioo",
@@ -15,10 +17,15 @@ let package = Package(
     products: [
         .library(
             name: "Trulioo",
-            targets: ["Trulioo", "TruliooCore"]
+            targets: ["Trulioo", "TruliooCore", "bureau_id_fraud_sdk"]
         ),
     ],
     targets: [
+        .binaryTarget(
+            name: "bureau_id_fraud_sdk",
+            url: bureauArtifactURL,
+            checksum: bureauArtifactChecksum
+        ),
         .binaryTarget(
             name: "Trulioo",
             url: truliooArtifactURL,
