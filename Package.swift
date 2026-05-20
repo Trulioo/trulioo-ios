@@ -1,14 +1,6 @@
 // swift-tools-version: 5.10
 import PackageDescription
 
-// Updated by scripts/package/package_binary_artifact.sh during release preparation.
-let truliooArtifactURL = "https://github.com/Trulioo/trulioo-ios/releases/download/3.1.0-beta.1/Trulioo.xcframework.zip"
-let truliooArtifactChecksum = "f7296de010086407d650cc62e4838ba9ffe7ba97d298a0b8b8ccfa5086952585"
-let truliooCoreArtifactURL = "https://github.com/Trulioo/trulioo-ios/releases/download/3.1.0-beta.1/TruliooCore.xcframework.zip"
-let truliooCoreArtifactChecksum = "bfa4dff09ad7a7041ed8b0cf33ba3a6b823294d9516e62284b795af9855974ca"
-let bureauArtifactURL = "https://github.com/Trulioo/trulioo-ios/releases/download/3.1.0-beta.1/bureau_id_fraud_sdk.xcframework.zip"
-let bureauArtifactChecksum = "de1c654b25b3f790ac5d62f4e8b066a07952f893b87017508b8d22a868c391d0"
-
 let package = Package(
     name: "Trulioo",
     platforms: [
@@ -22,19 +14,19 @@ let package = Package(
     ],
     targets: [
         .binaryTarget(
-            name: "bureau_id_fraud_sdk",
-            url: bureauArtifactURL,
-            checksum: bureauArtifactChecksum
-        ),
-        .binaryTarget(
             name: "Trulioo",
-            url: truliooArtifactURL,
-            checksum: truliooArtifactChecksum
+            url: "https://github.com/Trulioo/trulioo-ios/releases/download/3.1.0-beta.2/Trulioo.xcframework.zip",
+            checksum: "caf88d337acc291fde5c8724265796d2067feb9ac1edd7447529d872d6fde81e"
         ),
         .binaryTarget(
             name: "TruliooCore",
-            url: truliooCoreArtifactURL,
-            checksum: truliooCoreArtifactChecksum
+            url: "https://github.com/Trulioo/trulioo-ios/releases/download/3.1.0-beta.2/TruliooCore.xcframework.zip",
+            checksum: "6ac9cbe67faf4975203fc437c7dfa8b35387f14e7cd12a762069570c0ce36d08"
+        ),
+        .binaryTarget(
+            name: "bureau_id_fraud_sdk",
+            url: "https://github.com/Trulioo/trulioo-ios/releases/download/3.1.0-beta.2/bureau_id_fraud_sdk.xcframework.zip",
+            checksum: "ca83c9123cdc9431b77aff0b9be2333c9ec8f1be3a1447e82822be9484a05743"
         ),
     ]
 )
