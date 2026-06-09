@@ -15,18 +15,18 @@ let package = Package(
     targets: [
         .binaryTarget(
             name: "Trulioo",
-            url: "https://github.com/Trulioo/trulioo-ios/releases/download/3.1.0-beta.3/Trulioo.xcframework.zip",
-            checksum: "c19d8cf1cfc488d3760f5336297d22dd612c7003924eb7e2281ef51a65954de4"
+            url: "https://github.com/Trulioo/trulioo-ios/releases/download/3.1.0-beta.4/Trulioo.xcframework.zip",
+            checksum: "4fa1b3c17f8cdf42c8d50bb03abe650b8bbb7d5ac7723b32abdae6b0fb78077e"
         ),
         .binaryTarget(
             name: "TruliooCore",
-            url: "https://github.com/Trulioo/trulioo-ios/releases/download/3.1.0-beta.3/TruliooCore.xcframework.zip",
-            checksum: "97e939bdacfbcc0153ed7be868b608efd31deb4e689b59123366b31e37ec53e8"
+            url: "https://github.com/Trulioo/trulioo-ios/releases/download/3.1.0-beta.4/TruliooCore.xcframework.zip",
+            checksum: "e1c8d18d5ef6818668dd74dbf3569e5e155700594a23b62aa7edaab7022a4948"
         ),
         .binaryTarget(
             name: "bureau_id_fraud_sdk",
-            url: "https://github.com/Trulioo/trulioo-ios/releases/download/3.1.0-beta.3/bureau_id_fraud_sdk.xcframework.zip",
-            checksum: "80456c2db0ba16c5756a08a9f5abb6b6c944196db809d69aca68e62c1b129008"
+            url: "https://github.com/Trulioo/trulioo-ios/releases/download/3.1.0-beta.4/bureau_id_fraud_sdk.xcframework.zip",
+            checksum: "4f7dacd611f9828f90d9909a1a9457cab1db647856ea21484432567a5f66d03a"
         ),
     ]
 )

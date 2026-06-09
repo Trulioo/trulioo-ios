@@ -170,8 +170,9 @@ If debug tooling only needs the normalized device result:
 ```swift
 Trulioo.getDeviceInformation(
     initialization: initialized,
+    userId: nil,
     onComplete: { device in
-        // device is DeviceSeedResponse?
+        // device is TruliooDevice?
     },
     onError: { error in
         // Collection failed
@@ -182,6 +183,23 @@ Trulioo.getDeviceInformation(
 ## Features
 
 Beta - changes are possible.
+
+### Threading Requirement
+
+The following APIs are annotated `@MainActor` and must be called from the main thread (or with `await MainActor.run {}`):
+
+- `Trulioo.verifyData(...)`
+- `Trulioo.prepareEid(...)`
+- `Trulioo.verifyEid(...)`
+- `Trulioo.listEidProviders(...)`
+- `Trulioo.dataState`
+- `Trulioo.dataStateHandler`
+- `Trulioo.resetData()`
+- `Trulioo.eidState`
+- `Trulioo.resetEid()`
+- `Trulioo.reset()`
+
+Calling these from a background task without `@MainActor` context will produce a compiler warning or runtime error.
 
 ### Device Intelligence
 
@@ -494,6 +512,17 @@ Use those fields like this:
 - `debugTrace`
   Diagnostic timeline.
 
+## Resetting State
+
+Call `Trulioo.reset()` to clear all internal session state. Use this for logout flows or before re-initializing with a new shortcode:
+
+```swift
+Trulioo.reset()
+// Can now call Trulioo.initialize(...) again
+```
+
+Note: Calling `verifyData`, `prepareEid`, `verifyEid`, or `listEidProviders` after `reset()` (without re-initializing) will throw `NotInitializedError`.
+
 ## Platform Background
 
 Current iOS runtime metadata is derived from:
@@ -511,6 +540,11 @@ The authorization runtime metadata currently resolves:
 This is SDK-owned behavior. App consumers should not need to duplicate it.
 
 ## Error Handling
+
+Not-initialized errors:
+
+- `NotInitializedError` is thrown when calling any method before `initialize()` completes or after `reset()`
+- Affected methods: `collectDeviceIntelligence`, `getDeviceInformation`, `verifyData`, `prepareEid`, `verifyEid`, `listEidProviders`, `sessionClient`
 
 Initialization errors are delivered through the `onError` callback.
 
