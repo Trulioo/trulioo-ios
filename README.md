@@ -619,13 +619,3 @@ When capturing an iOS integration issue, record:
 5. the `transactionId`, `eventId`, and the relevant `debugTrace` entries
 6. whether subject reference data was provided and whether `device_reference_submit` appeared
 7. whether a runtime-specific `userId` was supplied to send or debug collection
-
-## Guiding Principles
-
-Use these principles to keep an iOS integration simple and predictable:
-
-1. initialize first
-2. send second
-3. subject data is caller-owned
-4. device basic information is SDK-owned
-5. the device event is the authoritative outcome
