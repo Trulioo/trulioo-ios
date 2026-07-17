@@ -2,6 +2,16 @@
 
 ## Quick Summary
 
+The Trulioo iOS SDK initializes a shortcode-backed session and exposes base verification capabilities for iOS applications.
+
+Customer applications can expect the SDK to:
+
+- resolve session configuration and authorization from the active shortcode
+- collect Device Intelligence when the application flow is ready
+- run KYC Data verification with subject data supplied by the application
+- list, prepare, and launch eID verification where configured
+- return iOS-native results, identifiers, errors, and diagnostic trace data for host routing and support
+
 A standard iOS integration looks like this:
 
 1. add the `Trulioo` Swift package
@@ -9,12 +19,6 @@ A standard iOS integration looks like this:
 3. call `collectDeviceIntelligence(...)`
 4. optionally provide subject reference data
 5. branch on accepted or failed and log the returned identifiers and `debugTrace`
-
-The published base `Trulioo` iOS SDK covers three primary integration flows:
-
-- Device Intelligence through `Trulioo.collectDeviceIntelligence(...)` and `Trulioo.getDeviceInformation(...)`
-- KYC Data verification through `Trulioo.verifyData(...)`
-- eID verification through `Trulioo.listEidProviders(...)`, `Trulioo.prepareEid(...)`, and `Trulioo.verifyEid(...)`
 
 ## Package And Compatibility
 
@@ -84,6 +88,26 @@ Important types:
 - `DeviceEventResponse`
 - `DebugTraceEntry`
 - `TruliooSessionClient`
+
+## Transport Retries
+
+By default, failed API calls are retried automatically.
+
+- default retries: `3`
+- total attempts: `4`
+- `maxRetries` is an optional field that sets the number of automatic retries after an API call failure
+
+Example:
+
+```swift
+let response: UploadResponse = try await sessionClient.authorizedUpload(
+    path: "/sdk/image",
+    body: uploadBody,
+    headers: uploadHeaders,
+    timeoutMilliseconds: 20_000,
+    maxRetries: 0
+)
+```
 
 ## Initialization
 
@@ -292,12 +316,12 @@ The zero-argument overload only enables the base SDK's default device-owned post
 
 Available operations:
 
-- `authorizedPost(path:body:)`
-- `authorizedGet(path:)`
-- `authorizedPostWithoutResponse(path:body:)`
-- `authorizedPostWithoutBody(path:)`
-- `authorizedGetWithoutResponse(path:)`
-- `authorizedUpload(path:body:contentType:headers:timeoutMilliseconds:)`
+- `authorizedPost(path:body:maxRetries:)`
+- `authorizedGet(path:maxRetries:)`
+- `authorizedPostWithoutResponse(path:body:maxRetries:)`
+- `authorizedPostWithoutBody(path:maxRetries:)`
+- `authorizedGetWithoutResponse(path:maxRetries:)`
+- `authorizedUpload(path:body:contentType:headers:timeoutMilliseconds:maxRetries:)`
 
 Example typed authorized POST:
 
@@ -560,6 +584,25 @@ Device collection throws on failure. When troubleshooting, inspect:
 - `debugTrace`
 
 Reference submission failures are captured in `debugTrace` and do not become direct user-facing collection errors by default.
+
+Transport errors:
+
+- `TruliooSessionClient` methods throw `TruliooClient.TransportError` when an HTTP or network-level request fails
+- inspect `error.code` (`TruliooClient.TransportErrorCode`) to classify the failure — do not parse `error.message`, which is a diagnostic string for logging
+- codes: `.timeout`, `.noInternet`, `.serverDown`, `.badRequest`, `.unauthorized`, `.tooManyRequests`, `.unprocessableEntity`, `.requestFailure`
+
+```swift
+do {
+    let result: MyResponse = try await sessionClient.authorizedGet(path: "/my/endpoint")
+} catch let error as TruliooClient.TransportError {
+    switch error.code {
+    case .timeout:      // retry or inform user
+    case .noInternet:   // check connectivity
+    case .unauthorized: // re-initialize
+    default:            // unexpected failure
+    }
+}
+```
 
 ## Environment And Shortcode Rules
 
