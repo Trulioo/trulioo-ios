@@ -7,18 +7,15 @@ The Trulioo iOS SDK initializes a shortcode-backed session and exposes base veri
 Customer applications can expect the SDK to:
 
 - resolve session configuration and authorization from the active shortcode
-- collect Device Intelligence when the application flow is ready
-- run KYC Data verification with subject data supplied by the application
-- list, prepare, and launch eID verification where configured
+- support configured Device Intelligence and eID capabilities
 - return iOS-native results, identifiers, errors, and diagnostic trace data for host routing and support
 
 A standard iOS integration looks like this:
 
 1. add the `Trulioo` Swift package
 2. initialize with a shortcode
-3. call `collectDeviceIntelligence(...)`
-4. optionally provide subject reference data
-5. branch on accepted or failed and log the returned identifiers and `debugTrace`
+3. start the required capability: Device Intelligence or eID
+4. use the result to continue, retry, or route the journey for review
 
 ## Package And Compatibility
 
@@ -26,14 +23,6 @@ A standard iOS integration looks like this:
 - Swift package product: `Trulioo`
 - package name: `Trulioo`
 - minimum iOS version: `15.0`
-
-The package includes the runtime components required by the public Trulioo API.
-
-Supported iOS integrations must use the Trulioo-supported runtime contract for the current package version.
-
-- the Trulioo iOS SDK requires the encrypted payload bundle from the runtime submit callback
-- runtime paths that only expose `eventId` are unsupported
-- `eventId` remains part of the Trulioo device event model for polling and diagnostics after seed submission succeeds
 
 ## Installation
 
@@ -64,50 +53,13 @@ Then link the product:
 )
 ```
 
-## Public API Surface
+## Before You Start
 
-Main entry points:
+Before using the SDK, make sure the host application:
 
-- `Trulioo.initialize(...)`
-- `Trulioo.collectDeviceIntelligence(...)`
-- `Trulioo.getDeviceInformation(...)`
-- `Trulioo.verifyData(...)`
-- `Trulioo.listEidProviders(...)`
-- `Trulioo.prepareEid(...)`
-- `Trulioo.verifyEid(...)`
-- `Trulioo.sessionClient(...)`
-
-Important types:
-
-- `Trulioo.InitializationOptions`
-- `Trulioo.InitializationResult`
-- `DeviceIntelligencePollingOptions`
-- `DeviceSubjectReference`
-- `DeviceSubjectOtherField`
-- `DeviceSeedResponse`
-- `DeviceEventResponse`
-- `DebugTraceEntry`
-- `TruliooSessionClient`
-
-## Transport Retries
-
-By default, failed API calls are retried automatically.
-
-- default retries: `3`
-- total attempts: `4`
-- `maxRetries` is an optional field that sets the number of automatic retries after an API call failure
-
-Example:
-
-```swift
-let response: UploadResponse = try await sessionClient.authorizedUpload(
-    path: "/sdk/image",
-    body: uploadBody,
-    headers: uploadHeaders,
-    timeoutMilliseconds: 20_000,
-    maxRetries: 0
-)
-```
+- has a valid shortcode generated through the Trulioo customer handoff flow using the [Customer API 3.0 handoff operation](https://developer.trulioo.com/reference/posthandoff)
+- uses a shortcode configured for the capabilities required by the journey, such as Device Intelligence or eID
+- initializes a new SDK session for each verification journey
 
 ## Initialization
 
@@ -116,10 +68,6 @@ iOS initialization is callback-based over async work:
 ```swift
 Trulioo.initialize(
     shortcode: shortcode,
-    options: Trulioo.InitializationOptions(
-        allowLocalDevelopment: false,
-        sdkVersion: "1.0.0"
-    ),
     onComplete: { result in
         // Persist the result for later collection
     },
@@ -133,78 +81,24 @@ Trulioo.initialize(
 
 Initialization:
 
-1. resolves the backend host from shortcode
-2. performs challenge and authorization
-3. fetches session configuration
-4. returns the initialization result
-5. remembers device-intelligence configuration when enabled
+1. resolves the service host from the shortcode
+2. establishes an authorized SDK session
+3. retrieves the session configuration
+4. retains Device Intelligence configuration for later native collection when enabled
+5. returns the initialization result for the current verification journey
 
-Initialization does not mean the device-intelligence flow has already run.
+### Initialization Result
 
-## Initialization Options
+The `onComplete` callback receives the current `Trulioo.InitializationResult`.
 
-`Trulioo.InitializationOptions` supports:
+| Field | Type | Meaning |
+|---|---|---|
+| `transactionId` | `String` | Identifier for the verification journey. |
+| `debugTrace` | `[DebugTraceEntry]` | SDK diagnostic entries for support and troubleshooting. |
 
-- `allowLocalDevelopment`
-- `deviceIntelligencePolling`
-- `enableNativeDeviceDebugLog`
-- `sdkVersion`
+The SDK retains the session configuration, resolved service host, and authorization token internally for the active session. Call `reset()` to clear that session before starting another journey.
 
-Use cases:
-
-- `allowLocalDevelopment`
-  Enable only for local or emulator shortcode testing.
-- `enableNativeDeviceDebugLog`
-  Use only for intentional diagnostic sessions. Leave off in normal production integrations.
-- `sdkVersion`
-  Set this to your integration version so operational logs and support cases are easier to map.
-
-`collectDeviceIntelligence(...)` and `getDeviceInformation(...)` also accept `userId`.
-
-Use `userId` only when your downstream device-intelligence runtime expects a runtime-specific user identifier. It is not a Trulioo transaction ID replacement.
-
-### Important Rules
-
-- collection happens after initialization
-- the public contract does not accept runtime credential overrides
-- `reference` is subject-only
-- the SDK generates device basic information internally
-- a failed reference call is debug-only and non-blocking
-- a runtime submit that does not return the encrypted payload bundle fails before Trulioo seed submission
-
-## Debug Blocking Collection
-
-Use blocking collection only when debug or diagnostics need the resolved device event and normalized seed:
-
-```swift
-let result = try await Trulioo.collectDeviceIntelligence(
-    initialization: initialized,
-    polling: DeviceIntelligencePollingOptions(),
-    reference: DeviceSubjectReference(
-        firstName: "Jane",
-        lastName: "Doe"
-    )
-)
-```
-
-## Convenience Device Callback
-
-If debug tooling only needs the normalized device result:
-
-```swift
-Trulioo.getDeviceInformation(
-    initialization: initialized,
-    userId: nil,
-    onComplete: { device in
-        // device is TruliooDevice?
-    },
-    onError: { error in
-        // Collection failed
-    }
-)
-```
-
-## Features
+## Verification Capabilities
 
 Beta - changes are possible.
 
@@ -212,15 +106,8 @@ Beta - changes are possible.
 
 The following APIs are annotated `@MainActor` and must be called from the main thread (or with `await MainActor.run {}`):
 
-- `Trulioo.verifyData(...)`
-- `Trulioo.prepareEid(...)`
 - `Trulioo.verifyEid(...)`
 - `Trulioo.listEidProviders(...)`
-- `Trulioo.dataState`
-- `Trulioo.dataStateHandler`
-- `Trulioo.resetData()`
-- `Trulioo.eidState`
-- `Trulioo.resetEid()`
 - `Trulioo.reset()`
 
 Calling these from a background task without `@MainActor` context will produce a compiler warning or runtime error.
@@ -229,36 +116,42 @@ Calling these from a background task without `@MainActor` context will produce a
 
 Use Device Intelligence when your iOS flow needs device-risk telemetry from the current app session.
 
+#### Choose An Integration Mode
+
+| Entry point | Use it when | Returns |
+|---|---|---|
+| `collectDeviceIntelligence(...)` | The application needs to submit DI and wait for lifecycle processing. | A lifecycle-only `deviceEvent` and `debugTrace`. |
+| `sendDeviceInformation(...)` | DI should be submitted in the background without waiting for lifecycle processing. | An accepted or failed submission receipt. |
+
+#### Recommended: `collectDeviceIntelligence(...)`
+
 The normal iOS sequence is:
 
 1. initialize once
 2. call `collectDeviceIntelligence(...)` when the host needs an explicit device result
-3. optionally use `getDeviceInformation(...)` when the host only needs the normalized device seed through callbacks
-4. inspect accepted or failed results
+3. inspect the lifecycle status and diagnostics
+
+For most integrations, use `collectDeviceIntelligence(...)`. It performs collection, submission, and polling in one async call. It returns a terminal event when processing completes or fails; if the configured polling limit is reached first, it returns the latest non-terminal lifecycle event and records the timeout in `debugTrace`.
+
+If polling exhausts, the result contains the last non-terminal lifecycle state and `debugTrace` contains a `device_event_terminal` timeout entry. Wait and retrieve the detailed result only after the status is `.completed`. If the event fails, use `deviceEvent.failureReason` for the failure detail.
 
 Explicit collection example:
 
 ```swift
 Trulioo.initialize(
     shortcode: shortcode,
-    options: Trulioo.InitializationOptions(
-        allowLocalDevelopment: false,
-        sdkVersion: "1.0.0"
-    ),
     onComplete: { initialized in
         Task {
             let result = try await Trulioo.collectDeviceIntelligence(
-                initialization: initialized,
-                polling: DeviceIntelligencePollingOptions(),
-                reference: DeviceSubjectReference(
-                    firstName: "Jane",
-                    lastName: "Doe",
-                    dateOfBirth: "1990-01-01"
-                )
+                polling: DeviceIntelligencePollingOptions()
             )
 
             print("device event", result.deviceEvent)
-            print("device seed", result.deviceSeed)
+
+            if result.deviceEvent?.status == .completed {
+                let eventId = result.deviceEvent?.eventId
+                let transactionId = result.deviceEvent?.transactionId
+            }
         }
     },
     onError: { error in
@@ -267,176 +160,116 @@ Trulioo.initialize(
 )
 ```
 
-Debug example:
+`collectDeviceIntelligence(...)` returns an enriched `Trulioo.InitializationResult` for the same session.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `deviceEvent` | `DeviceEventResult?` | Device-event lifecycle result, when Device Intelligence was collected. |
+| `deviceEvent.eventId` | `String` | Identifier for the submitted device event. |
+| `deviceEvent.transactionId` | `String` | Identifier used to retrieve the detailed device result after processing completes. |
+| `deviceEvent.status` | `DeviceEventStatus` | Current device-event state: `.queued`, `.running`, `.completed`, or `.failed`. |
+| `deviceEvent.failureReason` | `String?` | Failure explanation when the device event fails. |
+| `debugTrace` | `[DebugTraceEntry]` | SDK diagnostic entries for troubleshooting. |
+
+#### Background Submission: `sendDeviceInformation(...)`
+
+Use `sendDeviceInformation(...)` when the application should submit DI without waiting for server evaluation or a final risk result.
 
 ```swift
-let debugResult = try await Trulioo.collectDeviceIntelligence(
-    initialization: initialized,
-    polling: DeviceIntelligencePollingOptions(),
-    reference: DeviceSubjectReference(
-        firstName: "Jane",
-        lastName: "Doe"
+let submission = try await Trulioo.sendDeviceInformation()
+```
+
+It returns after Trulioo accepts the event, rather than waiting for a terminal DI outcome.
+
+The submission result is one of two cases.
+
+##### Accepted Response Fields
+
+| Field | Type | Meaning |
+|---|---|---|
+| case | `.accepted` | Trulioo accepted the device-event submission. Evaluation may still be processing. |
+| `transactionId` | `String` | Transaction identifier for the submitted device event. |
+| `eventId` | `String` | Device-event identifier for the submitted device event. |
+| `debugTrace` | `[DebugTraceEntry]` | SDK diagnostic entries captured while collecting and submitting the payload. |
+
+##### Failed Response Fields
+
+| Field | Type | Meaning |
+|---|---|---|
+| case | `.failed` | The SDK could not initialize the runtime, collect the payload, or submit the device event. |
+| `code` | `SendDeviceInformationFailureCode` | Stable failure code. |
+| `stage` | `String` | SDK stage at which the failure occurred. |
+| `message` | `String` | Failure detail. |
+| `transactionId` | `String?` | Transaction identifier, when one was available before the failure. |
+| `eventId` | `String?` | Device-event identifier, when one was available before the failure. |
+| `debugTrace` | `[DebugTraceEntry]` | SDK diagnostic entries captured before the failure. |
+
+#### Retrieve the Detailed Result
+
+Both integration modes provide `transactionId` after submission. Call `GET /transactions/{transactionId}/devices` with that value after device processing is complete to retrieve the detailed device result.
+
+- `collectDeviceIntelligence(...)` normally returns after reaching `.completed` or `.failed`. If its configured polling limit is reached first, it returns the latest non-terminal lifecycle state and records the timeout in `debugTrace`.
+- `sendDeviceInformation(...)` returns after Trulioo accepts the event, before evaluation completes.
+
+Retrieve details after the event is `.completed`. If `collectDeviceIntelligence(...)` returns a non-terminal status, wait and retry the endpoint until processing completes.
+
+See [Get transaction devices](https://developer.trulioo.com/reference/gettransactiondevices) for authentication, request requirements, and the detailed result fields.
+
+#### Device Intelligence Options
+
+Device Intelligence options customize explicit DI collection. They are optional; the SDK manages the device runtime automatically.
+
+`collectDeviceIntelligence(...)` accepts optional polling controls:
+
+| Option | Type | Use |
+|---|---|---|
+| `polling` | `DeviceIntelligencePollingOptions` | Controls how long explicit collection waits for a terminal result. Defaults to 32 attempts, 1,250 ms apart. If the event remains non-terminal after the limit, the result contains the last lifecycle-only `deviceEvent` and records the timeout in `debugTrace`. |
+
+Provide options directly to explicit collection:
+
+```swift
+let result = try await Trulioo.collectDeviceIntelligence(
+    polling: DeviceIntelligencePollingOptions(
+        maxAttempts: 10,
+        intervalMilliseconds: 1000
     )
 )
-
-print(debugResult.deviceEvent)
-print(debugResult.deviceSeed)
 ```
-
-Important behavior:
-
-- `collectDeviceIntelligence(...)` is the documented explicit collection path
-- `getDeviceInformation(...)` is useful when the host only needs the normalized device seed through callbacks
-- `reference` is caller-owned subject data only
-- device basic information is generated by the SDK
-- the SDK requires the supported encrypted payload bundle path before it seeds the Trulioo device event
-- initialization and device collection remain separate so the app can decide when to send
-
-## Advanced Authorized Session Contract
-
-iOS also exposes a post-bootstrap authorized session client.
-
-Use this when your integration needs approved Trulioo routes after initialization, such as:
-
-- typed authorized JSON requests
-- typed authorized binary uploads
-
-Create the session client from a successful initialization result:
-
-```swift
-let sessionClient = try Trulioo.sessionClient(
-    initialization: initialized,
-    allowedAuthorizedPaths: [
-        "/vendor/device/session"
-    ]
-)
-```
-
-The zero-argument overload only enables the base SDK's default device-owned post-bootstrap routes. Feature SDKs that own additional approved routes must register them explicitly through `allowedAuthorizedPaths`.
-
-Available operations:
-
-- `authorizedPost(path:body:maxRetries:)`
-- `authorizedGet(path:maxRetries:)`
-- `authorizedPostWithoutResponse(path:body:maxRetries:)`
-- `authorizedPostWithoutBody(path:maxRetries:)`
-- `authorizedGetWithoutResponse(path:maxRetries:)`
-- `authorizedUpload(path:body:contentType:headers:timeoutMilliseconds:maxRetries:)`
-
-Example typed authorized POST:
-
-```swift
-struct StatusRequest: Encodable {
-    let transactionId: String
-}
-
-struct StatusResponse: Decodable {
-    let status: String
-}
-
-let status: StatusResponse = try await sessionClient.authorizedPost(
-    path: "/vendor/device/session",
-    body: StatusRequest(transactionId: "txn-123")
-)
-```
-
-Rules:
-
-- initialize first and reuse the returned session result
-- the default helper only includes the base SDK's built-in device route allowlist
-- register any extra approved routes explicitly through `allowedAuthorizedPaths`
-- use approved relative paths only
-- treat this as an advanced contract, not the default device-information integration path
-
-## Polling
-
-Default polling:
-
-- `maxAttempts = 32`
-- `intervalMilliseconds = 1250`
-
-### KYC Data Verification
-
-Use `Trulioo.verifyData(...)` when your iOS flow already has subject data and needs a terminal KYC verification result from the same initialized session.
-
-The normal iOS sequence is:
-
-1. initialize once
-2. collect subject data in your app
-3. call `Trulioo.verifyData(...)`
-4. inspect the terminal result
-
-Example:
-
-```swift
-Trulioo.initialize(
-    shortcode: shortcode,
-    options: Trulioo.InitializationOptions(),
-    onComplete: { _ in
-        Task {
-            Trulioo.dataStateHandler = { state in
-                print("dataState", state)
-            }
-
-            let result = try await Trulioo.verifyData(
-                config: DataVerificationConfig(
-                    personInfo: PersonInfo(
-                        firstName: "Jane",
-                        lastName: "Doe",
-                        dateOfBirth: "1990-01-01"
-                    ),
-                    location: Location(
-                        buildingNumber: "123",
-                        streetName: "Example",
-                        streetType: "Ave",
-                        city: "Exampleville",
-                        stateProvinceCode: "BC",
-                        postalCode: "V0V0V0"
-                    ),
-                    communication: Communication(
-                        emailAddress: "jane.doe@example.com",
-                        mobileNumber: "+12025550123"
-                    ),
-                    countryCode: "CA"
-                )
-            )
-
-            if result.outcome == .accept && result.recordMatch {
-                print("data verified", result.transactionId)
-            } else {
-                print("data review path", result)
-            }
-        }
-    },
-    onError: { error in
-        print(error)
-    }
-)
-```
-
-Important behavior:
-
-- `verifyData(...)` reuses the internally stored initialized session
-- the SDK submits PII but does not return PII in `DataVerificationResult`
-- `Trulioo.dataState` exposes the current module state
-- `Trulioo.dataStateHandler` lets the host app observe state transitions
-- `Trulioo.resetData()` cancels or clears the current data flow when you need to restart it
 
 ### eID Verification
 
 Use the eID entrypoints when your iOS flow needs an interactive provider-backed identity verification from the same initialized session.
 
-Optional iOS-only setup:
+#### iOS Setup
 
-- `Trulioo.listEidProviders(...)` can be used to inspect licensed providers for a country before launch
+Customer-app integrations must use a globally unique callback scheme. Register it in `Info.plist`, then pass the same value as `callbackScheme` to `EidVerificationConfig`. The provider redirects to this scheme when the customer finishes, and the SDK's system authentication session receives the callback.
+
+```xml
+<key>CFBundleURLTypes</key>
+<array>
+    <dict>
+        <key>CFBundleURLName</key>
+        <string>com.example.app.eid</string>
+        <key>CFBundleURLSchemes</key>
+        <array>
+            <string>com.example.app.eid</string>
+        </array>
+    </dict>
+</array>
+```
+
+`Trulioo.listEidProviders(...)` is optional and can be used to inspect licensed providers for a country before launch.
+
+#### Start a Verification
 
 The normal iOS sequence is:
 
 1. initialize once
 2. optionally list providers for a country
-3. call `Trulioo.prepareEid(...)` when the eID screen appears
-4. call `Trulioo.verifyEid(...)` when the customer continues
-5. inspect the terminal result or call `Trulioo.resetEid()` before retrying
+3. call `Trulioo.verifyEid(...)` when the customer continues
+4. inspect the terminal result; call `Trulioo.reset()` and initialize a new session before retrying
+
+`verifyEid(...)` presents Apple's system browser-authentication session, rather than an embedded WebView. The SDK receives the callback and waits for the backend result.
 
 Example:
 
@@ -446,27 +279,23 @@ Trulioo.initialize(
     options: Trulioo.InitializationOptions(),
     onComplete: { _ in
         Task {
-            let providers = try await Trulioo.listEidProviders(countryCode: "SE")
-            print("providers", providers.map(\.name))
-
-            try await Trulioo.prepareEid(
-                config: EidVerificationConfig(
-                    countryCode: "SE",
-                    callbackScheme: "com.example.app"
+            do {
+                let result = try await Trulioo.verifyEid(
+                    config: EidVerificationConfig(
+                        countryCode: "SE",
+                        callbackScheme: "com.example.app.eid"
+                    )
                 )
-            )
 
-            let result = try await Trulioo.verifyEid(
-                config: EidVerificationConfig(
-                    countryCode: "SE",
-                    callbackScheme: "com.example.app"
-                )
-            )
-
-            if result.outcome == .success && result.match {
-                print("eid verified", result.transactionId)
-            } else {
-                print("eid not verified", result)
+                if result.outcome == .success && result.match {
+                    print("eid verified", result.transactionId)
+                } else {
+                    print("eid not verified", result)
+                }
+            } catch {
+                // The provider flow could not complete, for example because the
+                // customer cancelled, the flow timed out, or a request failed.
+                print("eid verification failed", error)
             }
         }
     },
@@ -476,65 +305,52 @@ Trulioo.initialize(
 )
 ```
 
-Important behavior:
+#### Result
 
-- `listEidProviders(...)` is optional and helps you inspect licensed providers for a country before launch
-- `prepareEid(...)` is the right place to pre-warm the eID screen
-- `verifyEid(...)` launches the interactive provider flow and waits for terminal status
-- for customer-app SDK integrations, set a unique `callbackScheme`
-- `callbackHost` is optional and should only be overridden when your environment requires a non-default callback host
-- `Trulioo.eidState` exposes the current eID state
-- `Trulioo.resetEid()` clears interrupted eID state before a restart
-- `intervalMilliseconds = 1250`
+`verifyEid(...)` returns after the provider flow and result polling reach a terminal result. The result does not contain the customer's submitted identity data.
 
-Example override:
+| Field | Type | Meaning |
+|---|---|---|
+| `transactionId` | `String` | Trulioo transaction that owns the verification. |
+| `outcome` | `EidOutcome` | Terminal eID outcome: `SUCCESS`, `FAILED`, `TIMEOUT`, `ERROR`, or `CANCELLED`. |
+| `match` | `Bool` | Whether the configured eID verification matched successfully. |
+
+Apply the host application's policy to the result. For example, continue after `SUCCESS` with `match: true`; provide a retry or alternate journey for other results and caught errors.
+
+#### Retrieve the Detailed Result
+
+After `verifyEid(...)` reaches a terminal result, call `GET /transactions/{transactionId}/eid/result` with `result.transactionId` to retrieve the detailed eID result.
+
+See [Get eID result](https://developer.trulioo.com/reference/geteidresult) for authentication, request requirements, and the detailed result fields.
+
+#### Input
+
+| Input | Type | Format and behavior |
+|---|---|---|
+| `countryCode` | `String` | Required. Use the two-letter uppercase ISO 3166-1 alpha-2 code configured for the eID journey. |
+| `providerIdentifier` | `String` | Optional. Omit it for server-side provider selection; set it only when the journey intentionally pins a licensed provider. |
+| `callbackScheme` | `String` | Required for customer-app integrations. It must match the scheme registered in `Info.plist`. |
+
+#### Optional: Choosing a specific Provider
+
+Provider discovery is optional. When `providerIdentifier` is omitted, Trulioo selects the healthiest licensed provider for the configured country. Call `listEidProviders(countryCode:)` only when the application needs to show a provider picker.
 
 ```swift
-let polling = DeviceIntelligencePollingOptions(
-    maxAttempts: 10,
-    intervalMilliseconds: 1000
+let providers = try await Trulioo.listEidProviders(countryCode: "SE")
+
+let config = EidVerificationConfig(
+    countryCode: "SE",
+    providerIdentifier: providers.first?.id,
+    callbackScheme: "com.example.app.eid"
 )
 ```
 
-## Subject Reference Data
-
-The public iOS reference type accepts subject data only:
-
-```swift
-let reference = DeviceSubjectReference(
-    firstName: "Jane",
-    lastName: "Doe",
-    dateOfBirth: "1990-01-01",
-    phoneNumber: "+15551234567",
-    other: [
-        DeviceSubjectOtherField(customKey: "middleName", value: "Ann")
-    ]
-)
-```
-
-Do not construct or pass basic-information payloads from the app. The SDK owns those fields.
-
-## Results
-
-`Trulioo.InitializationResult` contains:
-
-- `baseURL`
-- `accessToken`
-- `configuration`
-- `deviceEvent`
-- `deviceSeed`
-- `debugTrace`
-
-Use those fields like this:
-
-- `configuration`
-  Confirms what the backend enabled for the session.
-- `deviceEvent`
-  Source of truth for terminal status and failure reason.
-- `deviceSeed`
-  Normalized device result for product logic and UI.
-- `debugTrace`
-  Diagnostic timeline.
+| Provider field | Type | Meaning |
+|---|---|---|
+| `id` | `String` | Provider identifier. Pass this value as `providerIdentifier` after the customer chooses it. |
+| `name` | `String` | Display name suitable for the picker. |
+| `countries` | `[String]` | Countries supported by the provider. |
+| `health` | `String` | Current provider health. |
 
 ## Resetting State
 
@@ -545,30 +361,16 @@ Trulioo.reset()
 // Can now call Trulioo.initialize(...) again
 ```
 
-Note: Calling `verifyData`, `prepareEid`, `verifyEid`, or `listEidProviders` after `reset()` (without re-initializing) will throw `NotInitializedError`.
+Note: Calling `verifyEid` or `listEidProviders` after `reset()` (without re-initializing) will throw `NotInitializedError`.
 
-## Platform Background
-
-Current iOS runtime metadata is derived from:
-
-- `UIDevice`
-- `Locale`
-- `Bundle`
-
-The authorization runtime metadata currently resolves:
-
-- platform: `apple`
-- manufacturer: `Apple`
-- software: iOS version or OS string
-
-This is SDK-owned behavior. App consumers should not need to duplicate it.
+`reset()` also clears SDK-owned eID state.
 
 ## Error Handling
 
 Not-initialized errors:
 
 - `NotInitializedError` is thrown when calling any method before `initialize()` completes or after `reset()`
-- Affected methods: `collectDeviceIntelligence`, `getDeviceInformation`, `verifyData`, `prepareEid`, `verifyEid`, `listEidProviders`, `sessionClient`
+- Affected methods: `collectDeviceIntelligence`, `verifyEid`, `listEidProviders`
 
 Initialization errors are delivered through the `onError` callback.
 
@@ -583,82 +385,29 @@ Device collection throws on failure. When troubleshooting, inspect:
 - `deviceEvent?.failureReason`
 - `debugTrace`
 
-Reference submission failures are captured in `debugTrace` and do not become direct user-facing collection errors by default.
+eID errors:
 
-Transport errors:
-
-- `TruliooSessionClient` methods throw `TruliooClient.TransportError` when an HTTP or network-level request fails
-- inspect `error.code` (`TruliooClient.TransportErrorCode`) to classify the failure — do not parse `error.message`, which is a diagnostic string for logging
-- codes: `.timeout`, `.noInternet`, `.serverDown`, `.badRequest`, `.unauthorized`, `.tooManyRequests`, `.unprocessableEntity`, `.requestFailure`
-
-```swift
-do {
-    let result: MyResponse = try await sessionClient.authorizedGet(path: "/my/endpoint")
-} catch let error as TruliooClient.TransportError {
-    switch error.code {
-    case .timeout:      // retry or inform user
-    case .noInternet:   // check connectivity
-    case .unauthorized: // re-initialize
-    default:            // unexpected failure
-    }
-}
-```
-
-## Environment And Shortcode Rules
-
-Environment resolution is shortcode-driven.
-
-| Shortcode Pattern | Environment |
-| --- | --- |
-| default | production |
-| `.dv` suffix | development |
-| `.pr` suffix | preview |
-| `.local` suffix or `local` | local |
-| `.emulator` suffix or `emulator` | emulator |
-| `local@host:port` | local override |
-| `emulator@host:port` | emulator override |
-
-Supported region prefixes:
-
-- `us`
-- `eu`
-- `ap` / `apac`
-- `ca`
-
-Local and emulator shortcodes are blocked unless `allowLocalDevelopment` is explicitly enabled.
-
-## Common Mistakes
-
-- assuming initialization also performs collection
-- trying to pass runtime credential data from app code
-- coupling app-owned form data with SDK-owned basic-information fields
-- treating reference failure as a full collection failure
-- enabling native debug logging in normal production builds without need
+- `verifyEid(...)` throws when preparation, provider handoff, callback handling, or result polling fails
+- `verifyEid(...)` also throws when the customer cancels, the provider flow times out, or another eID verification is already in progress
 
 ## Troubleshooting
 
-If device intelligence does not run:
+If Device Intelligence does not appear:
 
-1. Confirm initialization succeeded.
-2. Confirm `configuration.deviceConfiguration?.intelligenceEnabled == true`.
-3. Confirm the backend returned a device credential.
-4. Confirm send was explicitly invoked, or confirm the debug wait path was intentionally chosen.
-5. Inspect `debugTrace`.
+1. Confirm initialization completed successfully.
+2. Confirm Device Intelligence is enabled for the account and verification journey.
+3. Confirm you explicitly called `collectDeviceIntelligence(...)` or `sendDeviceInformation(...)`.
+4. Inspect `debugTrace`.
 
-If the terminal event failed:
+If results are incomplete:
 
-1. inspect `deviceEvent?.failureReason`
-2. inspect processor details when present
-3. compare the terminal event with the `device_reference_submit` trace so reference failure is not mistaken for full collection failure
+1. Inspect `deviceEvent?.failureReason`.
+2. Inspect `debugTrace` for a polling timeout or failed stage.
+3. After the event completes, retrieve the detailed result with `GET /transactions/{transactionId}/devices`.
 
-## Diagnostic Capture Checklist
+If eID does not start or complete:
 
-When capturing an iOS integration issue, record:
-
-1. the shortcode used and whether it targeted production, development, preview, local, or emulator
-2. the app version, iOS version, and device model
-3. whether `allowLocalDevelopment` or `enableNativeDeviceDebugLog` was enabled
-4. the terminal `deviceEvent.status`, `failureReason`, and relevant processor details
-5. the `transactionId`, `eventId`, and the relevant `debugTrace` entries
-6. whether subject reference data was provided and whether `device_reference_submit` appeared
-7. whether a runtime-specific `userId` was supplied to send or debug collection
+1. Confirm initialization completed successfully and the selected country is configured for eID.
+2. Call `verifyEid(...)` from the customer's action so iOS can present the provider authentication session.
+3. Inspect a returned result's `outcome` and `match`, or handle the thrown error when provider handoff, callback handling, or result polling fails.
+4. Call `reset()`, initialize a new session, then retry an interrupted eID flow.
