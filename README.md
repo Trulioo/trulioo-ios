@@ -284,14 +284,11 @@ Trulioo.initialize(
                     config: EidVerificationConfig(
                         countryCode: "SE",
                         callbackScheme: "com.example.app.eid"
-                    )
+                    ),
+                    options: EidVerificationOptions(timeoutMs: 240_000) // optional; defaults to 180,000 ms
                 )
 
-                if result.outcome == .success && result.match {
-                    print("eid verified", result.transactionId)
-                } else {
-                    print("eid not verified", result)
-                }
+                print("eid reached terminal status \(result.status): \(result.transactionId)")
             } catch {
                 // The provider flow could not complete, for example because the
                 // customer cancelled, the flow timed out, or a request failed.
@@ -305,17 +302,28 @@ Trulioo.initialize(
 )
 ```
 
+`EidVerificationOptions.timeoutMs` controls the client-side wait for that verification. It defaults to **180,000 ms (three minutes)** and is capped by an earlier provider-session expiry; it does not extend the provider's server-side session.
+
+#### Cancel a Verification
+
+Call `Trulioo.cancelEid()` on the main actor to cancel an ongoing `verifyEid(...)` call, including while the provider flow is active or the SDK is polling. It cancels the local EID operation, dismisses the active browser-authentication session, and the pending `verifyEid(...)` call throws `EidError.cancelled`. The initialized SDK session remains available for a retry.
+
+```swift
+Button("Cancel verification") {
+    Trulioo.cancelEid()
+}
+```
+
 #### Result
 
-`verifyEid(...)` returns after the provider flow and result polling reach a terminal result. The result does not contain the customer's submitted identity data.
+`verifyEid(...)` returns after the provider flow and result polling reach a terminal result. It contains only the transaction ID and typed terminal status; fetch the detailed result for the EID outcome and identity details.
 
 | Field | Type | Meaning |
 |---|---|---|
 | `transactionId` | `String` | Trulioo transaction that owns the verification. |
-| `outcome` | `EidOutcome` | Terminal eID outcome: `SUCCESS`, `FAILED`, `TIMEOUT`, `ERROR`, or `CANCELLED`. |
-| `match` | `Bool` | Whether the configured eID verification matched successfully. |
+| `status` | `EidVerificationStatus` | `.completed`, `.denied`, `.userDenied`, `.timedOut`, or `.unknown`. `.unknown` is used when a terminal server status is not recognized by this SDK version. |
 
-Apply the host application's policy to the result. For example, continue after `SUCCESS` with `match: true`; provide a retry or alternate journey for other results and caught errors.
+Apply policy using the detailed result retrieved with `transactionId`, rather than inferring it from the terminal status.
 
 #### Retrieve the Detailed Result
 
@@ -409,5 +417,5 @@ If eID does not start or complete:
 
 1. Confirm initialization completed successfully and the selected country is configured for eID.
 2. Call `verifyEid(...)` from the customer's action so iOS can present the provider authentication session.
-3. Inspect a returned result's `outcome` and `match`, or handle the thrown error when provider handoff, callback handling, or result polling fails.
+3. Inspect a returned result's `status`, or handle the thrown error when provider handoff, callback handling, or result polling fails.
 4. Call `reset()`, initialize a new session, then retry an interrupted eID flow.
